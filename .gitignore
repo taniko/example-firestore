@@ -1,0 +1,6 @@
+emulator-data/
+tmp/
+.air.toml
+*.test
+*.out
+coverage.html

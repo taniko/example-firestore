@@ -1,0 +1,72 @@
+version: '3'
+
+tasks:
+  up:
+    desc: 開発環境を起動
+    cmds:
+      - docker compose up -d --build
+      - echo "🚀 開発環境が起動しました"
+
+  export:
+    desc: Firebaseエミュレータのデータをエクスポート
+    cmds:
+      - docker compose exec firebase firebase emulators:export /data/saved --project=demo-local --force
+      - echo "✅ データをエクスポートしました"
+
+  stop:
+    desc: コンテナを停止（コンテナは保持）
+    cmds:
+      - task: export
+      - docker compose stop
+      - echo "✅ コンテナを停止しました"
+
+  down:
+    desc: 開発環境を停止（データは保持）
+    cmds:
+      - task: export
+      - docker compose down
+      - echo "✅ 開発環境を停止しました"
+
+  logs:
+    desc: ログを表示
+    cmds:
+      - docker compose logs -f {{.CLI_ARGS}}
+
+  logs:server:
+    desc: サーバーのログを表示
+    cmds:
+      - docker compose logs -f server
+
+  logs:worker:
+    desc: ワーカーのログを表示
+    cmds:
+      - docker compose logs -f worker
+
+  clean:
+    desc: 開発環境を完全にクリーンアップ
+    cmds:
+      - docker compose down -v --remove-orphans
+      - rm -rf ./emulator-data/*
+      - rm -rf ./tmp
+      - echo "🧹 クリーンアップが完了しました"
+
+  restart:
+    desc: 開発環境を再起動
+    cmds:
+      - task: down
+      - task: up
+
+  test:
+    desc: テストを実行
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Lintを実行
+    cmds:
+      - golangci-lint run
+
+  fmt:
+    desc: コードをフォーマット
+    cmds:
+      - go fmt ./...

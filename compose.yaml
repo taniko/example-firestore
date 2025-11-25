@@ -1,0 +1,83 @@
+services:
+  firebase:
+    build:
+      context: .
+      dockerfile: docker/firebase/Dockerfile
+    init: true
+    ports:
+      - "8080:8080"   # Firestore
+      - "8085:8085"   # Pub/Sub
+      - "4000:4000"   # Emulator UI
+    volumes:
+      - ./emulator-data:/data
+    stop_grace_period: 60s
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:4000" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/local/Dockerfile
+    command: air -c .air.worker.toml
+    ports:
+      - "8001:8001"
+    volumes:
+      - .:/app
+    environment:
+      APP_ENV: local
+      PORT: '8001'
+      FIRESTORE_EMULATOR_HOST: firebase:8080
+      LOG_LEVEL: debug
+    depends_on:
+      firebase:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  pubsub-setup:
+    build:
+      context: .
+      dockerfile: docker/local/Dockerfile
+    command: go run ./cmd/setup
+    volumes:
+      - .:/app
+    environment:
+      LOG_LEVEL: debug
+      PUBSUB_EMULATOR_HOST: firebase:8085
+      GOOGLE_PROJECT_ID: demo-local
+      WORKER_PUSH_ENDPOINT: http://worker:8001/push
+    depends_on:
+      firebase:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/local/Dockerfile
+    command: air -c .air.server.toml
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: debug
+      PORT: '8000'
+      FIRESTORE_EMULATOR_HOST: firebase:8080
+      PUBSUB_EMULATOR_HOST: firebase:8085
+      GOOGLE_PROJECT_ID: demo-local
+    depends_on:
+      pubsub-setup:
+        condition: service_completed_successfully
+      firebase:
+        condition: service_healthy
